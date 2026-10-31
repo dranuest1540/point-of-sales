@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, CalendarDays, Printer, ReceiptText, X } from 'lucide-react';
-import { api, dateTime, money } from '../lib/api.js';
+import { api, dateTime, localDateBoundary, money } from '../lib/api.js';
 
 export default function SalesPage() {
   const [sales, setSales] = useState([]);
@@ -12,8 +12,19 @@ export default function SalesPage() {
   const [error, setError] = useState('');
 
   async function load() {
+    if (startDate && endDate && startDate > endDate) {
+      setError('Tanggal awal tidak boleh melewati tanggal akhir.');
+      setSales([]);
+      setMeta({ total: 0, totalPages: 1 });
+      return;
+    }
     try {
-      const query = new URLSearchParams({ page: String(page), limit: '12', ...(startDate ? { startDate } : {}), ...(endDate ? { endDate: `${endDate}T23:59:59.999` } : {}) });
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: '12',
+        ...(startDate ? { startDate: localDateBoundary(startDate) } : {}),
+        ...(endDate ? { endDate: localDateBoundary(endDate, true) } : {}),
+      });
       const result = await api(`/sales?${query}`);
       setSales(result.data);
       setMeta(result.meta);

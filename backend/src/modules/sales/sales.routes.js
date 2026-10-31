@@ -25,6 +25,12 @@ router.get('/', asyncHandler(async (request, response) => {
   const limit = Math.min(100, Math.max(1, Number.parseInt(request.query.limit, 10) || 20));
   const startDate = request.query.startDate ? new Date(String(request.query.startDate)) : undefined;
   const endDate = request.query.endDate ? new Date(String(request.query.endDate)) : undefined;
+  if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime()))) {
+    throw new AppError(400, 'Rentang tanggal tidak valid.');
+  }
+  if (startDate && endDate && startDate > endDate) {
+    throw new AppError(400, 'Tanggal awal tidak boleh melewati tanggal akhir.');
+  }
   const where = {
     ...(request.user.role === 'ADMIN' ? {} : { cashierId: request.user.id }),
     ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),

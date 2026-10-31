@@ -27,3 +27,19 @@ export const money = (value) => new Intl.NumberFormat('id-ID', {
 export const dateTime = (value) => new Intl.DateTimeFormat('id-ID', {
   dateStyle: 'medium', timeStyle: 'short',
 }).format(new Date(value));
+
+export function dateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function localDateBoundary(value, endOfDay = false) {
+  if (!value) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = endOfDay
+    ? new Date(year, month - 1, day, 23, 59, 59, 999)
+    : new Date(year, month - 1, day);
+  return date.toISOString();
+}

@@ -16,6 +16,9 @@ function dateFilter(query) {
   if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime()))) {
     throw new AppError(400, 'Rentang tanggal tidak valid.');
   }
+  if (startDate && endDate && startDate > endDate) {
+    throw new AppError(400, 'Tanggal awal tidak boleh melewati tanggal akhir.');
+  }
 
   return {
     status: 'PAID',
@@ -23,8 +26,20 @@ function dateFilter(query) {
   };
 }
 
+function reportTimeZone(query) {
+  const timeZone = query.timeZone ? String(query.timeZone) : 'UTC';
+  if (timeZone.length > 100) throw new AppError(400, 'Zona waktu tidak valid.');
+  try {
+    new Intl.DateTimeFormat('en', { timeZone }).format();
+  } catch {
+    throw new AppError(400, 'Zona waktu tidak valid.');
+  }
+  return timeZone;
+}
+
 router.get('/summary', asyncHandler(async (request, response) => {
   const where = dateFilter(request.query);
+  const timeZone = reportTimeZone(request.query);
   const [totals, sales, groupedItems, products] = await Promise.all([
     prisma.sale.aggregate({ where, _count: { _all: true }, _sum: { total: true } }),
     prisma.sale.findMany({ where, select: { id: true, total: true, createdAt: true }, orderBy: { createdAt: 'asc' } }),
@@ -41,8 +56,15 @@ router.get('/summary', asyncHandler(async (request, response) => {
     }),
   ]);
   const daily = new Map();
+  const dayFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
   for (const sale of sales) {
-    const date = sale.createdAt.toISOString().slice(0, 10);
+    const dateParts = Object.fromEntries(dayFormatter.formatToParts(sale.createdAt).map(({ type, value }) => [type, value]));
+    const date = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
     daily.set(date, (daily.get(date) ?? 0) + Number(sale.total));
   }
   response.json({

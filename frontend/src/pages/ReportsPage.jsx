@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ArrowDownToLine, CalendarDays, Download, Package, ShoppingCart, TrendingUp } from 'lucide-react';
-import { api, money } from '../lib/api.js';
+import { api, dateInputValue, localDateBoundary, money } from '../lib/api.js';
 
 function monthStart() {
   const date = new Date();
-  return new Date(date.getFullYear(), date.getMonth(), 1).toLocaleDateString('en-CA');
+  return dateInputValue(new Date(date.getFullYear(), date.getMonth(), 1));
 }
 
 function today() {
-  return new Date().toLocaleDateString('en-CA');
+  return dateInputValue();
 }
 
 export default function ReportsPage() {
@@ -19,10 +19,18 @@ export default function ReportsPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
+    if (startDate && endDate && startDate > endDate) {
+      setError('Tanggal awal tidak boleh melewati tanggal akhir.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      const query = new URLSearchParams({ startDate, endDate });
+      const query = new URLSearchParams({
+        ...(startDate ? { startDate: localDateBoundary(startDate) } : {}),
+        ...(endDate ? { endDate: localDateBoundary(endDate, true) } : {}),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
       const result = await api(`/reports/summary?${query}`);
       setReport(result.data);
     } catch (requestError) {
@@ -35,15 +43,25 @@ export default function ReportsPage() {
   useEffect(() => { load(); }, []);
 
   async function download() {
+    if (startDate && endDate && startDate > endDate) {
+      setError('Tanggal awal tidak boleh melewati tanggal akhir.');
+      return;
+    }
+    setError('');
     try {
-      const query = new URLSearchParams({ startDate, endDate });
+      const query = new URLSearchParams({
+        ...(startDate ? { startDate: localDateBoundary(startDate) } : {}),
+        ...(endDate ? { endDate: localDateBoundary(endDate, true) } : {}),
+      });
       const blob = await api(`/reports/sales.csv?${query}`);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `laporan-penjualan-${startDate}-${endDate}.csv`;
+      document.body.append(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (requestError) {
       setError(requestError.message);
     }
