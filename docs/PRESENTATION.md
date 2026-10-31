@@ -8,7 +8,7 @@ Panduan proyek meminta presentasi individu. Gunakan outline ini untuk menyiapkan
 4. **Main Project: Problem & Solution**: pencatatan manual, risiko stok tidak sinkron, kebutuhan laporan; tunjukkan fitur produk, checkout, role dan analitik.
 5. **User Flow**: Admin mengelola katalog → Kasir login → pilih produk → validasi cart/pembayaran → stok berkurang → struk tersimpan → Admin menganalisis dan mengunduh laporan.
 6. **ERD & API**: jelaskan User, Category, Product, Sale, SaleItem, kunci relasi, snapshot harga; tunjukkan satu request checkout dan respons.
-7. **Tech Stack & Architecture**: React/Zustand, Express, Prisma/MySQL, phpMyAdmin, Redis opsional, Cloudinary, dan Vercel; jelaskan pemisahan frontend/backend saat deployment.
+7. **Tech Stack & Architecture**: React/Zustand, Express, Prisma/PostgreSQL (Neon), Redis opsional, Cloudinary, dan Vercel; jelaskan pemisahan frontend/backend saat deployment.
 8. **Demo**: login Admin, edit stok, transaksi sebagai kasir, tunjukkan stok/struk/riwayat, buka laporan dan CSV, uji akses role.
 9. **Challenges & Problem Solving**: jelaskan sendiri race condition stok, transaksi database, cache invalidation, autentikasi/role, dan cara mengujinya.
 10. **Testing, Deployment & Next Steps**: skenario uji, Docker Compose, tautan repository/deployment/API docs, batasan dan rencana pengembangan.

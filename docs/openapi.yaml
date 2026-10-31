@@ -2,82 +2,258 @@ openapi: 3.0.3
 info:
   title: Kasa POS API
   version: 1.0.0
-  description: REST API untuk autentikasi, katalog, transaksi kasir, dan analitik penjualan.
+  description: |
+    REST API untuk aplikasi Kasa Point of Sale.
+
+    ## Otorisasi
+    Endpoint bertanda `bearerAuth` memerlukan JWT pada header
+    `Authorization: Bearer <token>`. Registrasi publik hanya dapat membuat role
+    `CASHIER`; Admin dibuat melalui proses seeding. Endpoint katalog baca dan
+    checkout dapat digunakan Admin maupun Kasir. CRUD produk/kategori dan
+    laporan hanya untuk Admin. Kasir hanya dapat membaca transaksi miliknya.
+
+    ## Relasi data
+    - `User` 1:N `Sale` melalui `Sale.cashierId`.
+    - `Category` 1:N `Product`; `Product.categoryId` boleh null.
+    - `Sale` 1:N `SaleItem`.
+    - `Product` 1:N `SaleItem`; hubungan Sale-Product adalah M:N yang
+      dijembatani `SaleItem`. Item menyimpan snapshot nama, SKU, harga, jumlah,
+      dan subtotal baris saat checkout.
+
+    ## Format response
+    Response JSON sukses membungkus objek atau daftar di dalam properti `data`.
+    Daftar produk dan transaksi juga mengembalikan metadata pagination di
+    `meta`. Nilai `Decimal` Prisma diserialisasi sebagai string.
+  contact:
+    name: Kasa POS
 servers:
-  - url: http://localhost:4000/api/v1
+  - url: http://{host}:{port}/api/v1
+    description: Backend lokal
+    variables:
+      host:
+        default: localhost
+        description: Host backend lokal.
+      port:
+        default: '4000'
+        description: Port backend lokal.
 tags:
   - name: Auth
+    description: Registrasi kasir, login, dan sesi pengguna.
   - name: Products
+    description: Katalog, pencarian, filter, pagination, dan pengelolaan produk Admin.
   - name: Categories
+    description: Pengelolaan kategori produk.
   - name: Sales
+    description: Checkout, riwayat, dan detail transaksi.
   - name: Reports
+    description: Ringkasan analitik dan ekspor laporan khusus Admin.
 paths:
   /auth/register:
     post:
       tags: [Auth]
-      summary: Registrasi akun kasir; role selalu CASHIER
+      operationId: registerCashier
+      security: []
+      summary: Registrasi akun kasir
+      description: Role akun yang didaftarkan selalu CASHIER; role tidak dapat dipilih dari request.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, email, password]
-              properties:
-                name: { type: string, example: Kasir Pagi }
-                email: { type: string, format: email, example: kasir@toko.id }
-                password: { type: string, minLength: 8, example: Rahasia123! }
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: Kasir Pagi
+              email: kasir@toko.id
+              password: Rahasia123!
       responses:
-        '201': { description: Akun kasir dibuat; mengembalikan user dan bearer token }
-        '400': { description: Validasi gagal }
-        '409': { description: Email sudah terdaftar }
+        '201':
+          description: Akun kasir berhasil dibuat dan token diterbitkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                data:
+                  user:
+                    id: cmexamplecashier
+                    name: Kasir Pagi
+                    email: kasir@toko.id
+                    role: CASHIER
+                  token: <jwt-token>
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
   /auth/login:
     post:
       tags: [Auth]
-      summary: Login Admin/Kasir
+      operationId: login
+      security: []
+      summary: Login Admin atau Kasir
+      description: Memeriksa email/password dan mengembalikan user serta JWT yang berlaku 12 jam.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email: { type: string, format: email }
-                password: { type: string, example: Admin123! }
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: admin@kasir.local
+              password: Admin123!
       responses:
-        '200': { description: Mengembalikan user, role, dan JWT }
-        '401': { description: Kredensial tidak sesuai }
+        '200':
+          description: Login berhasil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                data:
+                  user:
+                    id: cmexampleadmin
+                    name: Administrator
+                    email: admin@kasir.local
+                    role: ADMIN
+                  token: <jwt-token>
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Email/password tidak sesuai atau akun tidak aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  message: Email atau password tidak sesuai.
   /auth/me:
     get:
       tags: [Auth]
-      security: [{ bearerAuth: [] }]
-      summary: Profil sesi aktif
+      operationId: getCurrentUser
+      summary: Melihat profil sesi aktif
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: User aktif }
-        '401': { description: Token tidak valid }
+        '200':
+          description: Profil pengguna dari token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /products:
     get:
       tags: [Products]
-      security: [{ bearerAuth: [] }]
-      summary: Daftar produk aktif, pencarian, filter kategori, dan pagination
+      operationId: listProducts
+      summary: Mencari dan memfilter produk
+      description: |
+        Menampilkan produk aktif. Admin dapat meminta produk nonaktif dengan
+        `status=all`. Pencarian mencocokkan nama atau SKU. Hasil dipaginasi.
+      security:
+        - bearerAuth: []
       parameters:
-        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
-        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 12 } }
-        - { in: query, name: search, schema: { type: string }, description: Cari nama atau SKU }
-        - { in: query, name: categoryId, schema: { type: string } }
-        - { in: query, name: lowStock, schema: { type: boolean } }
-        - { in: query, name: status, schema: { type: string, enum: [all] }, description: Admin saja; sertakan produk nonaktif }
+        - name: page
+          in: query
+          description: Nomor halaman, dimulai dari 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah produk per halaman (maksimum 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+        - name: search
+          in: query
+          description: Kata kunci nama produk atau SKU.
+          schema:
+            type: string
+            example: kopi
+        - name: categoryId
+          in: query
+          description: Filter berdasarkan ID kategori.
+          schema:
+            type: string
+        - name: lowStock
+          in: query
+          description: Jika true, tampilkan produk dengan stok <= 5.
+          schema:
+            type: boolean
+            default: false
+        - name: status
+          in: query
+          description: Admin saja; nilai all menyertakan produk nonaktif.
+          schema:
+            type: string
+            enum: [all]
       responses:
-        '200': { description: data dan meta page/limit/total/totalPages }
+        '200':
+          description: Daftar produk dan metadata pagination.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+              example:
+                data:
+                  - id: cmexampleproduct
+                    sku: MIN-010
+                    name: Kopi Manual Brew
+                    description: Kopi seduh manual
+                    imageUrl: null
+                    imagePublicId: null
+                    price: '24000.00'
+                    stock: 20
+                    lowStockAt: 5
+                    isActive: true
+                    categoryId: cmexamplecategory
+                    category:
+                      id: cmexamplecategory
+                      name: Minuman
+                    createdAt: '2026-10-31T10:00:00.000Z'
+                    updatedAt: '2026-10-31T10:00:00.000Z'
+                meta:
+                  page: 1
+                  limit: 12
+                  total: 1
+                  totalPages: 1
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     post:
       tags: [Products]
-      security: [{ bearerAuth: [] }]
-      summary: Buat produk (Admin)
-      description: Field wajib sku, name, price, stock. Field metadata dikirim sebagai JSON pada multipart field product; gambar opsional dikirim sebagai file image (JPG, PNG, atau WebP, maksimal 4 MB). JSON application/json tanpa gambar juga didukung.
+      operationId: createProduct
+      summary: Membuat produk (Admin)
+      description: |
+        Buat produk dengan JSON biasa atau multipart. Untuk multipart, kirim
+        JSON produk sebagai string pada field `product` dan gambar opsional
+        pada field `image`. Gambar yang diterima JPG, PNG, atau WebP, maksimal
+        4 MB. Upload memerlukan konfigurasi Cloudinary.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+            example:
+              sku: MIN-010
+              name: Kopi Manual Brew
+              description: Kopi seduh manual
+              price: 24000
+              stock: 20
+              lowStockAt: 5
+              categoryId: cmexamplecategory
+              isActive: true
           multipart/form-data:
             schema:
               type: object
@@ -85,169 +261,1071 @@ paths:
               properties:
                 product:
                   type: string
-                  description: JSON string berisi field sku, name, price, stock, dan field produk opsional.
-                  example: '{"sku":"MIN-010","name":"Kopi Susu","price":22000,"stock":15,"lowStockAt":5}'
+                  description: JSON string berisi field produk yang sama dengan ProductCreateRequest.
+                  example: '{"sku":"MIN-010","name":"Kopi Manual Brew","price":24000,"stock":20,"lowStockAt":5}'
                 image:
                   type: string
                   format: binary
-                  description: Gambar opsional dengan format JPG, PNG, atau WebP; maksimal 4 MB.
-          application/json:
-            schema:
-              type: object
-              required: [sku, name, price, stock]
-              properties:
-                sku: { type: string, example: MIN-010 }
-                name: { type: string, example: Kopi Susu }
-                price: { type: number, example: 22000 }
-                stock: { type: integer, example: 15 }
-                lowStockAt: { type: integer, example: 5 }
-                categoryId: { type: string, nullable: true }
+                  description: JPG, PNG, atau WebP maksimal 4 MB.
       responses:
-        '201': { description: Produk dibuat }
-        '400': { description: Validasi gagal }
-        '403': { description: Role bukan Admin }
+        '201':
+          description: Produk berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                data:
+                  id: cmexampleproduct
+                  sku: MIN-010
+                  name: Kopi Manual Brew
+                  description: Kopi seduh manual
+                  imageUrl: null
+                  imagePublicId: null
+                  price: '24000.00'
+                  stock: 20
+                  lowStockAt: 5
+                  isActive: true
+                  categoryId: cmexamplecategory
+                  category:
+                    id: cmexamplecategory
+                    name: Minuman
+                  createdAt: '2026-10-31T10:00:00.000Z'
+                  updatedAt: '2026-10-31T10:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '413':
+          description: Ukuran gambar melebihi 4 MB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upload gambar gagal pada Cloudinary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Konfigurasi Cloudinary belum lengkap.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /products/{id}:
     parameters:
-      - { in: path, name: id, required: true, schema: { type: string } }
+      - name: id
+        in: path
+        required: true
+        description: ID produk.
+        schema:
+          type: string
     get:
       tags: [Products]
-      security: [{ bearerAuth: [] }]
-      summary: Detail produk
+      operationId: getProductById
+      summary: Mendapatkan detail produk
+      description: Kasir tidak dapat melihat produk nonaktif.
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: Produk ditemukan }
-        '404': { description: Produk tidak ditemukan }
+        '200':
+          description: Detail produk.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
     patch:
       tags: [Products]
-      security: [{ bearerAuth: [] }]
-      summary: Perbarui sebagian field produk (Admin)
-      description: Menerima JSON biasa atau multipart dengan field product berisi JSON dan field image opsional.
+      operationId: updateProduct
+      summary: Mengubah produk (Admin)
+      description: Menerima JSON parsial atau multipart dengan field product berupa JSON string dan field image opsional.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object, description: Field product yang ingin diubah }
+            schema:
+              $ref: '#/components/schemas/ProductUpdateRequest'
+            example:
+              price: 25000
+              stock: 18
           multipart/form-data:
             schema:
               type: object
               required: [product]
               properties:
-                product: { type: string, description: JSON string berisi field produk yang diubah. }
-                image: { type: string, format: binary, description: Gambar JPG, PNG, atau WebP; maksimal 4 MB. }
+                product:
+                  type: string
+                  description: JSON string dari field produk yang diubah.
+                  example: '{"price":25000,"stock":18}'
+                image:
+                  type: string
+                  format: binary
+                  description: JPG, PNG, atau WebP maksimal 4 MB.
       responses:
-        '200': { description: Produk diperbarui }
-        '403': { description: Role bukan Admin }
+        '200':
+          description: Produk berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
     delete:
       tags: [Products]
-      security: [{ bearerAuth: [] }]
-      summary: Nonaktifkan produk (Admin; soft delete)
+      operationId: archiveProduct
+      summary: Menonaktifkan produk (Admin)
+      description: Soft delete; produk tidak dihapus fisik agar riwayat transaksi tetap terjaga.
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: Produk dinonaktifkan }
-        '403': { description: Role bukan Admin }
+        '200':
+          description: Produk dinonaktifkan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Product'
+                  message:
+                    type: string
+                    example: Produk dinonaktifkan.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
   /categories:
     get:
       tags: [Categories]
-      security: [{ bearerAuth: [] }]
-      summary: Daftar kategori
+      operationId: listCategories
+      summary: Mendapatkan daftar kategori
+      security:
+        - bearerAuth: []
       responses:
-        '200': { description: Kategori berurutan berdasarkan nama }
+        '200':
+          description: Daftar kategori diurutkan berdasarkan nama.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+              example:
+                data:
+                  - id: cmexamplecategory
+                    name: Minuman
+                    createdAt: '2026-10-31T10:00:00.000Z'
+                    updatedAt: '2026-10-31T10:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
     post:
       tags: [Categories]
-      security: [{ bearerAuth: [] }]
-      summary: Buat kategori (Admin)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, required: [name], properties: { name: { type: string, example: Minuman } } }
-      responses:
-        '201': { description: Kategori dibuat }
-        '403': { description: Role bukan Admin }
-  /categories/{id}:
-    delete:
-      tags: [Categories]
-      security: [{ bearerAuth: [] }]
-      summary: Hapus kategori; produk terkait menjadi tanpa kategori (Admin)
-      parameters:
-        - { in: path, name: id, required: true, schema: { type: string } }
-      responses:
-        '204': { description: Kategori dihapus }
-        '403': { description: Role bukan Admin }
-  /sales:
-    get:
-      tags: [Sales]
-      security: [{ bearerAuth: [] }]
-      summary: Riwayat transaksi dengan filter tanggal dan pagination
-      description: Kasir hanya menerima transaksi miliknya; Admin menerima seluruh transaksi.
-      parameters:
-        - { in: query, name: page, schema: { type: integer, default: 1 } }
-        - { in: query, name: limit, schema: { type: integer, maximum: 100, default: 20 } }
-        - { in: query, name: startDate, schema: { type: string, format: date-time } }
-        - { in: query, name: endDate, schema: { type: string, format: date-time } }
-      responses:
-        '200': { description: Daftar transaksi beserta item dan meta pagination }
-    post:
-      tags: [Sales]
-      security: [{ bearerAuth: [] }]
-      summary: Checkout dan kurangi stok secara atomik
+      operationId: createCategory
+      summary: Membuat kategori (Admin)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [items, amountPaid]
-              properties:
-                items:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [productId, quantity]
-                    properties:
-                      productId: { type: string }
-                      quantity: { type: integer, minimum: 1 }
-                discount: { type: number, minimum: 0, default: 0 }
-                amountPaid: { type: number, minimum: 0, example: 50000 }
-                paymentMethod: { type: string, enum: [CASH, CARD, QRIS], default: CASH }
+              $ref: '#/components/schemas/CategoryCreateRequest'
+            example:
+              name: Minuman
       responses:
-        '201': { description: Struk transaksi dibuat }
-        '400': { description: Pembayaran kurang, diskon tidak valid, atau body invalid }
-        '409': { description: Stok berubah/tidak mencukupi }
+        '201':
+          description: Kategori berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+  /categories/{id}:
+    delete:
+      tags: [Categories]
+      operationId: deleteCategory
+      summary: Menghapus kategori (Admin)
+      description: Produk dalam kategori tetap ada; categoryId produk tersebut diubah menjadi null.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID kategori.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Kategori berhasil dihapus; response tidak memiliki body.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /sales:
+    get:
+      tags: [Sales]
+      operationId: listSales
+      summary: Melihat riwayat transaksi
+      description: Admin melihat semua transaksi; Kasir hanya melihat transaksi miliknya.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: startDate
+          in: query
+          description: Tanggal/waktu transaksi mulai, inklusif.
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Tanggal/waktu transaksi sampai, inklusif.
+          schema:
+            type: string
+            format: date-time
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PAID, VOIDED]
+      responses:
+        '200':
+          description: Daftar transaksi, item, kasir, dan metadata pagination.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalePage'
+              example:
+                data:
+                  - id: cmexamplesale
+                    receiptNumber: POS-1790000000000-AB12
+                    cashierId: cmexamplecashier
+                    subtotal: '48000.00'
+                    discount: '2000.00'
+                    tax: '0.00'
+                    total: '46000.00'
+                    paymentMethod: CASH
+                    amountPaid: '50000.00'
+                    change: '4000.00'
+                    status: PAID
+                    createdAt: '2026-10-31T10:00:00.000Z'
+                    cashier:
+                      name: Kasir Demo
+                    items:
+                      - id: cmexamplesaleitem
+                        saleId: cmexamplesale
+                        productId: cmexampleproduct
+                        productName: Kopi Manual Brew
+                        productSku: MIN-010
+                        quantity: 2
+                        unitPrice: '24000.00'
+                        lineTotal: '48000.00'
+                        createdAt: '2026-10-31T10:00:00.000Z'
+                meta:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Sales]
+      operationId: createSale
+      summary: Checkout dan membuat struk
+      description: |
+        Admin maupun Kasir dapat melakukan checkout. Stok diperiksa dan
+        dikurangi secara atomik dalam transaksi database. Pembayaran harus
+        mencukupi total; diskon tidak boleh melebihi subtotal.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+            example:
+              items:
+                - productId: cmexampleproduct
+                  quantity: 2
+              discount: 2000
+              amountPaid: 50000
+              paymentMethod: CASH
+      responses:
+        '201':
+          description: Transaksi berhasil, stok dikurangi, dan struk dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleResponse'
+              example:
+                data:
+                  id: cmexamplesale
+                  receiptNumber: POS-1790000000000-AB12
+                  cashierId: cmexamplecashier
+                  subtotal: '48000.00'
+                  discount: '2000.00'
+                  tax: '0.00'
+                  total: '46000.00'
+                  paymentMethod: CASH
+                  amountPaid: '50000.00'
+                  change: '4000.00'
+                  status: PAID
+                  createdAt: '2026-10-31T10:00:00.000Z'
+                  cashier:
+                    name: Kasir Demo
+                  items:
+                    - id: cmexamplesaleitem
+                      saleId: cmexamplesale
+                      productId: cmexampleproduct
+                      productName: Kopi Manual Brew
+                      productSku: MIN-010
+                      quantity: 2
+                      unitPrice: '24000.00'
+                      lineTotal: '48000.00'
+                      createdAt: '2026-10-31T10:00:00.000Z'
+        '400':
+          description: Input tidak valid, pembayaran kurang, atau diskon melebihi subtotal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Satu atau lebih produk tidak tersedia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Stok tidak cukup atau berubah saat checkout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /sales/{id}:
     get:
       tags: [Sales]
-      security: [{ bearerAuth: [] }]
-      summary: Detail transaksi/struk
+      operationId: getSaleById
+      summary: Melihat detail transaksi atau struk
+      description: Kasir hanya dapat melihat transaksi miliknya; Admin dapat melihat semua transaksi.
+      security:
+        - bearerAuth: []
       parameters:
-        - { in: path, name: id, required: true, schema: { type: string } }
+        - name: id
+          in: path
+          required: true
+          description: ID transaksi.
+          schema:
+            type: string
       responses:
-        '200': { description: Detail transaksi }
-        '404': { description: Tidak ditemukan atau bukan milik kasir aktif }
+        '200':
+          description: Detail transaksi beserta item dan kasir.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Transaksi tidak ditemukan atau bukan milik Kasir aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /reports/summary:
     get:
       tags: [Reports]
-      security: [{ bearerAuth: [] }]
-      summary: Ringkasan revenue, tren, produk terlaris, dan stok rendah (Admin)
+      operationId: getReportSummary
+      summary: Mendapatkan ringkasan penjualan
+      description: Metrik berdasarkan transaksi berstatus PAID dan produk aktif yang stoknya rendah. Admin saja.
+      security:
+        - bearerAuth: []
       parameters:
-        - { in: query, name: startDate, schema: { type: string, format: date-time } }
-        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+        - name: startDate
+          in: query
+          description: Filter mulai tanggal/waktu (inklusif).
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Filter sampai tanggal/waktu (inklusif); tanggal YYYY-MM-DD mencakup akhir hari UTC.
+          schema:
+            type: string
+            example: '2026-10-31'
       responses:
-        '200': { description: Agregat laporan dari report service }
-        '403': { description: Role bukan Admin }
+        '200':
+          description: Revenue, jumlah transaksi, rata-rata order, produk terlaris, stok rendah, dan tren harian.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportSummaryResponse'
+              example:
+                data:
+                  totalRevenue: 46000
+                  transactionCount: 1
+                  averageOrderValue: 46000
+                  topProducts:
+                    - productId: cmexampleproduct
+                      productName: Kopi Manual Brew
+                      productSku: MIN-010
+                      quantity: 2
+                      revenue: 48000
+                  lowStockProducts: []
+                  dailySales:
+                    - date: '2026-10-31'
+                      revenue: 46000
+        '400':
+          description: Rentang tanggal tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
   /reports/sales.csv:
     get:
       tags: [Reports]
-      security: [{ bearerAuth: [] }]
-      summary: Unduh laporan penjualan CSV (Admin)
+      operationId: downloadSalesCsv
+      summary: Mengunduh laporan transaksi CSV
+      description: Ekspor transaksi berstatus PAID dalam rentang tanggal; Admin saja.
+      security:
+        - bearerAuth: []
       parameters:
-        - { in: query, name: startDate, schema: { type: string, format: date-time } }
-        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            example: '2026-10-31'
       responses:
-        '200': { description: File CSV berisi transaksi lunas, content: { text/csv: {} } }
-        '403': { description: Role bukan Admin }
+        '200':
+          description: File CSV UTF-8 dengan BOM untuk aplikasi spreadsheet.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="laporan-penjualan.csv"
+          content:
+            text/csv:
+              schema:
+                type: string
+              example: |
+                No. Struk,Tanggal,Kasir,Produk,Jumlah Item,Subtotal,Diskon,Total,Metode Bayar
+                POS-1790000000000-AB12,2026-10-31T10:00:00.000Z,Kasir Demo,Kopi Manual Brew x2,2,48000,2000,46000,CASH
+        '400':
+          description: Rentang tanggal tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  responses:
+    ValidationError:
+      description: Request body atau input tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error:
+              message: Input tidak valid.
+              details:
+                - field: email
+                  message: Invalid email
+    UnauthorizedError:
+      description: Token tidak ada, tidak valid, kedaluwarsa, atau akun tidak aktif.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: Silakan login untuk melanjutkan.
+    ForbiddenError:
+      description: Role tidak memiliki izin untuk endpoint ini.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: Anda tidak memiliki akses ke fitur ini.
+    NotFoundError:
+      description: Resource tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: Data tidak ditemukan.
+    ConflictError:
+      description: Nilai unik sudah digunakan atau terjadi konflik data.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              message: Nilai unik sudah digunakan.
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message]
+          properties:
+            message:
+              type: string
+              example: Terjadi kesalahan pada server.
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+    ValidationErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message]
+          properties:
+            message:
+              type: string
+              example: Input tidak valid.
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+          example: Kasir Pagi
+        email:
+          type: string
+          format: email
+          maxLength: 160
+          example: kasir@toko.id
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          example: Rahasia123!
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@kasir.local
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          example: Admin123!
+    User:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+          example: cmexampleadmin
+        name:
+          type: string
+          example: Administrator
+        email:
+          type: string
+          format: email
+          example: admin@kasir.local
+        role:
+          type: string
+          enum: [ADMIN, CASHIER]
+    AuthResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user, token]
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+              description: JWT bearer token, berlaku 12 jam.
+              example: <jwt-token>
+    Category:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          example: cmexamplecategory
+        name:
+          type: string
+          example: Minuman
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 60
+          example: Minuman
+    Product:
+      type: object
+      required: [id, sku, name, price, stock, lowStockAt, isActive, categoryId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          example: cmexampleproduct
+        sku:
+          type: string
+          example: MIN-010
+        name:
+          type: string
+          example: Kopi Manual Brew
+        description:
+          type: string
+          nullable: true
+          example: Kopi seduh manual
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        imagePublicId:
+          type: string
+          nullable: true
+          readOnly: true
+        price:
+          type: string
+          description: Prisma Decimal(12,2), diserialisasi sebagai string.
+          example: '24000.00'
+        stock:
+          type: integer
+          minimum: 0
+          example: 20
+        lowStockAt:
+          type: integer
+          minimum: 0
+          example: 5
+        isActive:
+          type: boolean
+          example: true
+        categoryId:
+          type: string
+          nullable: true
+        category:
+          type: object
+          nullable: true
+          required: [id, name]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProductCreateRequest:
+      type: object
+      required: [sku, name, price, stock]
+      properties:
+        sku:
+          type: string
+          minLength: 2
+          maxLength: 40
+          example: MIN-010
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: Kopi Manual Brew
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        price:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9999999999
+          example: 24000
+        stock:
+          type: integer
+          minimum: 0
+          example: 20
+        lowStockAt:
+          type: integer
+          minimum: 0
+          default: 5
+        categoryId:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+          default: true
+    ProductUpdateRequest:
+      type: object
+      properties:
+        sku:
+          type: string
+          minLength: 2
+          maxLength: 40
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        price:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9999999999
+        stock:
+          type: integer
+          minimum: 0
+        lowStockAt:
+          type: integer
+          minimum: 0
+        categoryId:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+    ProductResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Product'
+    PaginationMeta:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 12
+        total:
+          type: integer
+          example: 1
+        totalPages:
+          type: integer
+          example: 1
+    ProductPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    CheckoutRequest:
+      type: object
+      required: [items, amountPaid]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: string
+                example: cmexampleproduct
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 999
+                example: 2
+        discount:
+          type: number
+          minimum: 0
+          default: 0
+          example: 2000
+        amountPaid:
+          type: number
+          minimum: 0
+          example: 50000
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD, QRIS]
+          default: CASH
+    SaleItem:
+      type: object
+      required: [id, saleId, productId, productName, productSku, quantity, unitPrice, lineTotal, createdAt]
+      properties:
+        id:
+          type: string
+        saleId:
+          type: string
+        productId:
+          type: string
+        productName:
+          type: string
+          description: Snapshot nama produk pada saat transaksi.
+        productSku:
+          type: string
+          description: Snapshot SKU produk pada saat transaksi.
+        quantity:
+          type: integer
+        unitPrice:
+          type: string
+          description: Snapshot harga Decimal(12,2) per unit.
+          example: '24000.00'
+        lineTotal:
+          type: string
+          description: Total baris Decimal(12,2).
+          example: '48000.00'
+        createdAt:
+          type: string
+          format: date-time
+    SaleCashier:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Kasir Demo
+    Sale:
+      type: object
+      required: [id, receiptNumber, cashierId, subtotal, discount, tax, total, paymentMethod, amountPaid, change, status, createdAt, items, cashier]
+      properties:
+        id:
+          type: string
+        receiptNumber:
+          type: string
+          example: POS-1790000000000-AB12
+        cashierId:
+          type: string
+        subtotal:
+          type: string
+          example: '48000.00'
+        discount:
+          type: string
+          example: '2000.00'
+        tax:
+          type: string
+          example: '0.00'
+        total:
+          type: string
+          example: '46000.00'
+        paymentMethod:
+          type: string
+          enum: [CASH, CARD, QRIS]
+        amountPaid:
+          type: string
+          example: '50000.00'
+        change:
+          type: string
+          example: '4000.00'
+        status:
+          type: string
+          enum: [PAID, VOIDED]
+        createdAt:
+          type: string
+          format: date-time
+        cashier:
+          $ref: '#/components/schemas/SaleCashier'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SaleItem'
+    SaleResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Sale'
+    SalePage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sale'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    LowStockProduct:
+      type: object
+      required: [id, sku, name, stock, lowStockAt]
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        stock:
+          type: integer
+        lowStockAt:
+          type: integer
+    TopProduct:
+      type: object
+      required: [productId, productName, productSku, quantity, revenue]
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        productSku:
+          type: string
+        quantity:
+          type: integer
+        revenue:
+          type: number
+    DailySale:
+      type: object
+      required: [date, revenue]
+      properties:
+        date:
+          type: string
+          format: date
+        revenue:
+          type: number
+    ReportSummaryResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [totalRevenue, transactionCount, averageOrderValue, topProducts, lowStockProducts, dailySales]
+          properties:
+            totalRevenue:
+              type: number
+              example: 46000
+            transactionCount:
+              type: integer
+              example: 1
+            averageOrderValue:
+              type: number
+              example: 46000
+            topProducts:
+              type: array
+              items:
+                $ref: '#/components/schemas/TopProduct'
+            lowStockProducts:
+              type: array
+              items:
+                $ref: '#/components/schemas/LowStockProduct'
+            dailySales:
+              type: array
+              items:
+                $ref: '#/components/schemas/DailySale'

@@ -3,6 +3,11 @@ import { ArrowRight, Coffee, LockKeyhole, Mail, Store } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useSession } from '../store/session.js';
 
+const demoAccounts = [
+  { role: 'Admin', email: 'admin@kasir.local', password: 'Admin123!' },
+  { role: 'Kasir', email: 'kasir@kasir.local', password: 'Kasir123!' },
+];
+
 export default function LoginPage() {
   const setAuth = useSession((state) => state.setAuth);
   const [isRegister, setIsRegister] = useState(false);
@@ -51,7 +56,26 @@ export default function LoginPage() {
             <button className="button button-primary login-submit" disabled={busy}>{busy ? 'Memproses...' : isRegister ? 'Buat akun' : 'Masuk ke kasir'}<ArrowRight size={17} /></button>
           </form>
           <p className="login-toggle">{isRegister ? 'Sudah punya akun?' : 'Belum terdaftar?'} <button onClick={() => { setIsRegister(!isRegister); setError(''); }}>{isRegister ? 'Masuk' : 'Daftar kasir'}</button></p>
-          {!isRegister && <div className="demo-hint"><span>AKUN DEMO</span><code>admin@kasir.local · Admin123!</code></div>}
+          {!isRegister && <div className="demo-hint">
+            <span>MASUK DENGAN AKUN DEMO</span>
+            <div className="demo-accounts">
+              {demoAccounts.map((account) => (
+                <button
+                  className="demo-account"
+                  key={account.role}
+                  type="button"
+                  aria-label={`Gunakan akun demo ${account.role}`}
+                  onClick={() => {
+                    setForm({ ...form, email: account.email, password: account.password });
+                    setError('');
+                  }}
+                >
+                  <b>{account.role}</b>
+                  <code>{account.email} · {account.password}</code>
+                </button>
+              ))}
+            </div>
+          </div>}
         </div>
         <span className="login-footer">KASA POS · WORKSPACE 2026</span>
       </section>

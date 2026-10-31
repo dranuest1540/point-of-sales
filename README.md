@@ -6,11 +6,11 @@ Aplikasi point of sales untuk mengelola katalog, stok, pembayaran, riwayat trans
 
 - Frontend: React 19, Vite, React Router, Zustand, CSS responsif.
 - Backend API: Node.js, Express 5, Zod, JWT, bcrypt.
-- Database: MySQL 8.4 dan Prisma ORM.
+- Database: PostgreSQL 16 dan Prisma ORM; Neon untuk production.
 - Laporan: endpoint laporan berada di API utama agar berjalan sebagai Express server lokal maupun Vercel Function.
 - Cache: Redis 7 untuk daftar produk; cache memiliki TTL dan dihapus saat katalog/stok berubah.
-- Gambar produk: Cloudinary untuk penyimpanan file; MySQL hanya menyimpan URL dan public ID.
-- Database lokal: MySQL, dikelola melalui phpMyAdmin. Untuk production, gunakan penyedia MySQL managed yang mendukung koneksi dari Vercel.
+- Gambar produk: Cloudinary untuk penyimpanan file; PostgreSQL hanya menyimpan URL dan public ID.
+- Database lokal: PostgreSQL melalui Docker Compose. Database MySQL lama di komputer Anda tidak dihapus, tetapi aplikasi tidak lagi menggunakannya.
 - Deployment: frontend dan backend dideploy sebagai dua project Vercel terpisah.
 
 ```text
@@ -18,15 +18,15 @@ React / Zustand
       | HTTP + JWT
 Express API ---------------- Redis
       |                         cache katalog
-      +---------- MySQL (lokal / managed)
+      +---------- PostgreSQL (lokal / Neon)
       +---------- Cloudinary (gambar produk)
 ```
 
-API memegang autentikasi dan otorisasi. Checkout memakai transaksi database, memvalidasi stok dengan update bersyarat, menyimpan snapshot item, dan mengurangi stok secara atomik. Prisma terhubung ke MySQL melalui `DATABASE_URL`.
+API memegang autentikasi dan otorisasi. Checkout memakai transaksi database, memvalidasi stok dengan update bersyarat, menyimpan snapshot item, dan mengurangi stok secara atomik. Prisma memakai `DATABASE_URL` untuk koneksi aplikasi dan `DIRECT_URL` untuk perintah Prisma CLI.
 
 ## Menjalankan aplikasi
 
-Pilih Docker Compose atau MySQL lokal. Untuk Docker, Docker Desktop dan Docker Compose v2 harus sudah terpasang dan berjalan.
+Pilih Docker Compose atau PostgreSQL lokal. Untuk Docker, Docker Desktop dan Docker Compose v2 harus sudah terpasang dan berjalan.
 
 1. Buka terminal di root repository (folder yang berisi `docker-compose.yml`).
 2. (Opsional) Salin `.env.example` menjadi `.env` untuk mengubah konfigurasi lokal. Ganti secret/password sebelum penggunaan di luar lokal. Untuk menjalankan backend tanpa Docker, gunakan `backend/.env.example` sebagai basis konfigurasi backend.
@@ -47,15 +47,15 @@ Saat backend mulai, Compose menjalankan Prisma `db push`, lalu menambahkan akun 
 
 Ganti nilainya melalui `.env`; jangan gunakan kredensial demo untuk deployment publik.
 
-Untuk menghentikan aplikasi, tekan `Ctrl+C` di terminal, lalu jalankan `docker compose down`. Data MySQL/Redis disimpan pada named volume. MySQL container menggunakan port `3306`; port host default adalah `3307` agar tidak bertabrakan dengan MySQL dari Laragon/XAMPP. phpMyAdmin tersedia di `http://localhost:8080`; login dengan server `db`, username `pos`, dan password `pos_dev_password` (atau nilai yang Anda atur di `.env`). Tabel/schema PostgreSQL lama tidak otomatis dipindahkan ke MySQL; database MySQL baru dibuat terpisah. Untuk menghapus data lokal MySQL/Redis sepenuhnya gunakan `docker compose down -v`.
+Untuk menghentikan aplikasi, tekan `Ctrl+C` di terminal, lalu jalankan `docker compose down`. Data PostgreSQL/Redis disimpan pada named volume. PostgreSQL container memakai port `5432`; port host default adalah `5433`. Database MySQL lama di instalasi lokal Anda tidak dihapus. Docker Compose membuat database PostgreSQL lokal baru untuk aplikasi. Untuk menghapus volume Docker gunakan `docker compose down -v` (perintah ini menghapus data PostgreSQL/Redis di Docker).
 
-### Melihat database dengan phpMyAdmin
+### Melihat database PostgreSQL
 
-`docker compose up --build` menjalankan MySQL dan phpMyAdmin. Buka `http://localhost:8080`, masukkan server `db`, username `pos`, dan password `pos_dev_password`. Database `pos_db` serta tabel dibuat otomatis oleh Prisma saat backend mulai. **phpMyAdmin dipakai untuk melihat/mengelola isi MySQL, bukan menjalankan Prisma migration.** Jika memakai phpMyAdmin dari instalasi XAMPP untuk mengakses container MySQL, koneksikan ke host `127.0.0.1`, port host `3307` (atau nilai `MYSQL_PORT` di `.env`), username `pos`, dan password yang diatur di `.env`.
+`docker compose up --build` menjalankan PostgreSQL. Database `pos_db` serta tabel dibuat otomatis oleh Prisma saat backend mulai. Untuk melihat data, gunakan `psql` atau aplikasi klien PostgreSQL seperti pgAdmin; phpMyAdmin hanya mendukung MySQL dan tidak dapat digunakan untuk database Neon/PostgreSQL.
 
 Untuk menjalankan schema dan seeder secara manual tanpa Docker:
 
-1. Pastikan MySQL 8.4 aktif dan database `pos_db` sudah dibuat.
+1. Pastikan PostgreSQL 16 aktif dan database `pos_db` sudah dibuat.
 2. Salin `backend/.env.example` menjadi `backend/.env`. Sesuaikan username, password, dan port pada `DATABASE_URL`.
 3. Dari terminal, pindah ke folder `backend`, lalu jalankan:
 
@@ -69,7 +69,7 @@ Untuk menjalankan schema dan seeder secara manual tanpa Docker:
 
 `npm run db:push` membuat/menyamakan tabel dari `backend/prisma/schema.prisma`. `npm run db:seed` mengisi akun Admin, akun kasir, kategori, dan produk contoh. Akun seed bisa diubah lewat `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CASHIER_EMAIL`, dan `CASHIER_PASSWORD` di `backend/.env`. Untuk Compose, proses db push dan seed tersebut dijalankan otomatis saat backend mulai.
 
-Frontend dijalankan di terminal terpisah: masuk ke `frontend`, lalu jalankan `npm install` dan `npm run dev`. Jika ingin Redis, pastikan layanan Redis lokal aktif dan `REDIS_URL` sesuai. Tanpa `REDIS_URL`, API tetap membaca data langsung dari MySQL.
+Frontend dijalankan di terminal terpisah: masuk ke `frontend`, lalu jalankan `npm install` dan `npm run dev`. Jika ingin Redis, pastikan layanan Redis lokal aktif dan `REDIS_URL` sesuai. Tanpa `REDIS_URL`, API tetap membaca data langsung dari PostgreSQL.
 
 ### Upload gambar produk
 
@@ -89,8 +89,9 @@ Isi `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, dan `CLOUDINARY_API_SECRET` p
 ## Dokumentasi
 
 - ERD dan keputusan database: [docs/ERD.md](docs/ERD.md)
-- API OpenAPI: [docs/openapi.yaml](docs/openapi.yaml)
+- API Swagger/OpenAPI (endpoint, payload, response, relasi): [docs/openapi.yaml](docs/openapi.yaml)
 - Koleksi Postman: [docs/postman_collection.json](docs/postman_collection.json)
+- Cara membuka Swagger UI dan panduan pengujian API: [docs/API-TESTING.md](docs/API-TESTING.md)
 - Outline presentasi sesuai panduan: [docs/PRESENTATION.md](docs/PRESENTATION.md)
 
 ## Struktur folder
@@ -114,24 +115,56 @@ docker-compose.yml
 
 ```bash
 cd frontend && npm run build
-cd ../backend && npm run db:generate
+cd ../backend && npm run db:generate && npm test
 ```
 
-Uji manual setelah layanan aktif: login kedua role, uji checkout dengan stok cukup/tidak cukup, cek stok setelah checkout, akses halaman Admin sebagai kasir, filter riwayat/laporan, dan buka CSV hasil unduhan.
+Skenario manual, contoh payload/response, dan hasil yang diharapkan per endpoint tersedia di [docs/API-TESTING.md](docs/API-TESTING.md). Uji integrasi dengan Postman setelah layanan database dan API aktif.
 
-## Deployment Vercel + MySQL managed + Cloudinary
+## Deployment Vercel + Neon + Cloudinary
 
-Deploy frontend dan backend sebagai **dua project Vercel** dari repository yang sama:
+Neon menggunakan PostgreSQL, jadi konfigurasi aplikasi dan Docker lokal sekarang sama-sama PostgreSQL. Data pada MySQL lokal lama tidak dimigrasikan atau dihapus; database Neon baru akan diisi akun dan produk contoh melalui seeder.
 
-1. Buat project Vercel frontend dengan Root Directory `frontend` (build command `npm run build`, output `dist`).
-2. Buat project Vercel backend dengan Root Directory `backend`. Express app diekspor dari `src/index.js` dan berjalan sebagai Vercel Function; endpoint API tetap memakai prefix `/api/v1`.
-3. Buat database MySQL managed yang dapat diakses dari Vercel. Ambil connection string MySQL dari provider dan set sebagai `DATABASE_URL` pada backend.
-   - `JWT_SECRET`: secret acak kuat, tidak sama dengan nilai development.
-   - `CLIENT_URL`: URL production frontend Vercel.
-   - `ADMIN_EMAIL` dan `ADMIN_PASSWORD`: kredensial awal Admin yang aman.
+### 1. Buat database Neon
+
+1. Buat akun di Neon, lalu buat project PostgreSQL dan database `pos_db` (atau catat nama database default).
+2. Dari menu **Connect**, salin kedua connection string. Gunakan URL **pooled** (hostname memuat `-pooler`) untuk `DATABASE_URL`, serta URL **direct/unpooled** untuk `DIRECT_URL`.
+3. Jangan menaruh URL tersebut di frontend, commit, dokumentasi publik, atau chat. Masukkan ke Environment Variables project backend di Vercel dan `backend/.env` lokal yang di-ignore Git hanya bila menjalankan perintah Prisma dari komputer.
+
+### 2. Buat asset Cloudinary
+
+Buat akun Cloudinary, lalu ambil Cloud name, API Key, dan API Secret dari dashboard. Simpan sebagai environment variable backend saja. Jangan gunakan ketiga nilai ini di `VITE_*` atau frontend.
+
+### 3. Deploy backend API di Vercel
+
+1. Import repository GitHub ke Vercel dan set **Root Directory** ke `backend`.
+2. Backend memakai Express entry point `src/index.js`; endpoint tetap memakai prefix `/api/v1` dan health check tersedia di `/health`. Build command `npm run build`, install command default Vercel.
+3. Tambahkan environment variables untuk Production (serta Preview jika diperlukan):
+   - `DATABASE_URL`: Neon pooled connection string.
+   - `DIRECT_URL`: Neon direct/unpooled connection string, untuk Prisma CLI.
+   - `JWT_SECRET`: secret acak kuat minimal 32 karakter.
+   - `CLIENT_URL`: URL deployment frontend Vercel.
+   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CASHIER_EMAIL`, `CASHIER_PASSWORD`: kredensial unik dan kuat untuk akun seed.
    - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: kredensial Cloudinary.
-   - `REDIS_URL` opsional; tanpa Redis, cache dinonaktifkan dan query tetap memakai database.
-4. Pada project frontend, atur `VITE_API_URL` menjadi URL backend + `/api/v1` (contoh: `https://nama-api.vercel.app/api/v1`), lalu redeploy.
-5. Sebelum memakai API production, jalankan `npm run db:push` dari folder backend dengan `DATABASE_URL` production. Jalankan `npm run db:seed` hanya jika ingin membuat akun Admin dan data demo. Jangan gunakan password demo di production.
+   - `REDIS_URL` opsional; jangan diisi dulu jika belum mempunyai Redis managed.
+4. Deploy dan catat URL API (misalnya `https://nama-api.vercel.app`).
 
-Set variabel backend dari Vercel Project Settings → Environment Variables. Jangan meletakkan `DATABASE_URL`, `JWT_SECRET`, atau secret Cloudinary pada frontend maupun commit file `.env`. Neon hanya menyediakan PostgreSQL dan tidak dapat digunakan oleh konfigurasi MySQL ini. Setelah deployment, uji `/health`, login Admin/Kasir, checkout, laporan, dan upload gambar. Cloudinary adalah penyimpanan gambar; ia tidak menggantikan database.
+### 4. Siapkan schema dan akun awal
+
+Sebelum frontend menggunakan database, jalankan perintah Prisma dari folder `backend` dengan `backend/.env` berisi kedua connection string Neon serta nilai akun Admin/Kasir yang aman:
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:seed
+```
+
+Ini membuat schema kosong dan mengisi akun serta produk demo ke Neon baru. Jangan jalankan seeder dengan kredensial default pada database publik. Perintah schema tidak dijalankan otomatis saat setiap deployment.
+
+### 5. Deploy frontend
+
+1. Import repository yang sama sebagai project Vercel kedua dan set **Root Directory** ke `frontend`.
+2. Build command `npm run build`, output directory `dist`.
+3. Set `VITE_API_URL` ke URL backend lengkap dengan `/api/v1`, misalnya `https://nama-api.vercel.app/api/v1`, kemudian deploy.
+4. Pastikan `CLIENT_URL` di project backend cocok persis dengan URL frontend production. Jika mengubahnya, redeploy backend.
+
+Setelah deployment, uji frontend, `/health`, login Admin/Kasir, checkout, laporan, dan upload gambar. Cloudinary hanya menyimpan file gambar; data transaksi dan URL gambar tetap disimpan di Neon.

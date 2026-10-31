@@ -1,6 +1,6 @@
 # ERD dan Database Kasa POS
 
-ERD berikut menggambarkan model database MySQL yang digunakan aplikasi. Sumber skema yang menjadi acuan adalah `backend/prisma/schema.prisma`.
+ERD berikut menggambarkan model database PostgreSQL yang digunakan aplikasi (lokal dan Neon). Sumber skema yang menjadi acuan adalah `backend/prisma/schema.prisma`.
 
 ```mermaid
 erDiagram
