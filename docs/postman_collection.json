@@ -1,0 +1,60 @@
+{
+  "info": {
+    "name": "Kasa POS API",
+    "description": "Panggil Login terlebih dahulu untuk menyimpan bearer token. Authenticated requests menggunakan collection-level bearer token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "productId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login admin demo",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@kasir.local\",\n  \"password\": \"Admin123!\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json();", "if (body.data?.token) pm.collectionVariables.set('token', body.data.token);"] } }]
+        },
+        {
+          "name": "Register cashier",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Kasir Baru\",\n  \"email\": \"kasir@example.test\",\n  \"password\": \"Kasir123!\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        { "name": "List products", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/products?page=1&limit=12&search=kopi", "host": ["{{baseUrl}}"], "path": ["products"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "12" }, { "key": "search", "value": "kopi" }] } } },
+        { "name": "Create product (Admin)", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"sku\": \"MIN-010\",\n  \"name\": \"Kopi Manual Brew\",\n  \"price\": 24000,\n  \"stock\": 20,\n  \"lowStockAt\": 5\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/products", "host": ["{{baseUrl}}"], "path": ["products"] } } }
+      ]
+    },
+    {
+      "name": "Sales",
+      "item": [
+        { "name": "Checkout", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"items\": [{ \"productId\": \"{{productId}}\", \"quantity\": 1 }],\n  \"amountPaid\": 50000,\n  \"paymentMethod\": \"CASH\"\n}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/sales", "host": ["{{baseUrl}}"], "path": ["sales"] } } },
+        { "name": "Transaction history", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/sales?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["sales"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }] } } }
+      ]
+    },
+    {
+      "name": "Reports (Admin)",
+      "item": [
+        { "name": "Summary", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/reports/summary", "host": ["{{baseUrl}}"], "path": ["reports", "summary"] } } },
+        { "name": "Download CSV", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/reports/sales.csv", "host": ["{{baseUrl}}"], "path": ["reports", "sales.csv"] } } }
+      ]
+    }
+  ],
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }
+}

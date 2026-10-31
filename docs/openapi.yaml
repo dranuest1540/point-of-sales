@@ -1,0 +1,253 @@
+openapi: 3.0.3
+info:
+  title: Kasa POS API
+  version: 1.0.0
+  description: REST API untuk autentikasi, katalog, transaksi kasir, dan analitik penjualan.
+servers:
+  - url: http://localhost:4000/api/v1
+tags:
+  - name: Auth
+  - name: Products
+  - name: Categories
+  - name: Sales
+  - name: Reports
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi akun kasir; role selalu CASHIER
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, example: Kasir Pagi }
+                email: { type: string, format: email, example: kasir@toko.id }
+                password: { type: string, minLength: 8, example: Rahasia123! }
+      responses:
+        '201': { description: Akun kasir dibuat; mengembalikan user dan bearer token }
+        '400': { description: Validasi gagal }
+        '409': { description: Email sudah terdaftar }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login Admin/Kasir
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, example: Admin123! }
+      responses:
+        '200': { description: Mengembalikan user, role, dan JWT }
+        '401': { description: Kredensial tidak sesuai }
+  /auth/me:
+    get:
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      summary: Profil sesi aktif
+      responses:
+        '200': { description: User aktif }
+        '401': { description: Token tidak valid }
+  /products:
+    get:
+      tags: [Products]
+      security: [{ bearerAuth: [] }]
+      summary: Daftar produk aktif, pencarian, filter kategori, dan pagination
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 12 } }
+        - { in: query, name: search, schema: { type: string }, description: Cari nama atau SKU }
+        - { in: query, name: categoryId, schema: { type: string } }
+        - { in: query, name: lowStock, schema: { type: boolean } }
+        - { in: query, name: status, schema: { type: string, enum: [all] }, description: Admin saja; sertakan produk nonaktif }
+      responses:
+        '200': { description: data dan meta page/limit/total/totalPages }
+    post:
+      tags: [Products]
+      security: [{ bearerAuth: [] }]
+      summary: Buat produk (Admin)
+      description: Field wajib sku, name, price, stock. Field metadata dikirim sebagai JSON pada multipart field product; gambar opsional dikirim sebagai file image (JPG, PNG, atau WebP, maksimal 4 MB). JSON application/json tanpa gambar juga didukung.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [product]
+              properties:
+                product:
+                  type: string
+                  description: JSON string berisi field sku, name, price, stock, dan field produk opsional.
+                  example: '{"sku":"MIN-010","name":"Kopi Susu","price":22000,"stock":15,"lowStockAt":5}'
+                image:
+                  type: string
+                  format: binary
+                  description: Gambar opsional dengan format JPG, PNG, atau WebP; maksimal 4 MB.
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, price, stock]
+              properties:
+                sku: { type: string, example: MIN-010 }
+                name: { type: string, example: Kopi Susu }
+                price: { type: number, example: 22000 }
+                stock: { type: integer, example: 15 }
+                lowStockAt: { type: integer, example: 5 }
+                categoryId: { type: string, nullable: true }
+      responses:
+        '201': { description: Produk dibuat }
+        '400': { description: Validasi gagal }
+        '403': { description: Role bukan Admin }
+  /products/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string } }
+    get:
+      tags: [Products]
+      security: [{ bearerAuth: [] }]
+      summary: Detail produk
+      responses:
+        '200': { description: Produk ditemukan }
+        '404': { description: Produk tidak ditemukan }
+    patch:
+      tags: [Products]
+      security: [{ bearerAuth: [] }]
+      summary: Perbarui sebagian field produk (Admin)
+      description: Menerima JSON biasa atau multipart dengan field product berisi JSON dan field image opsional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: Field product yang ingin diubah }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [product]
+              properties:
+                product: { type: string, description: JSON string berisi field produk yang diubah. }
+                image: { type: string, format: binary, description: Gambar JPG, PNG, atau WebP; maksimal 4 MB. }
+      responses:
+        '200': { description: Produk diperbarui }
+        '403': { description: Role bukan Admin }
+    delete:
+      tags: [Products]
+      security: [{ bearerAuth: [] }]
+      summary: Nonaktifkan produk (Admin; soft delete)
+      responses:
+        '200': { description: Produk dinonaktifkan }
+        '403': { description: Role bukan Admin }
+  /categories:
+    get:
+      tags: [Categories]
+      security: [{ bearerAuth: [] }]
+      summary: Daftar kategori
+      responses:
+        '200': { description: Kategori berurutan berdasarkan nama }
+    post:
+      tags: [Categories]
+      security: [{ bearerAuth: [] }]
+      summary: Buat kategori (Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name], properties: { name: { type: string, example: Minuman } } }
+      responses:
+        '201': { description: Kategori dibuat }
+        '403': { description: Role bukan Admin }
+  /categories/{id}:
+    delete:
+      tags: [Categories]
+      security: [{ bearerAuth: [] }]
+      summary: Hapus kategori; produk terkait menjadi tanpa kategori (Admin)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Kategori dihapus }
+        '403': { description: Role bukan Admin }
+  /sales:
+    get:
+      tags: [Sales]
+      security: [{ bearerAuth: [] }]
+      summary: Riwayat transaksi dengan filter tanggal dan pagination
+      description: Kasir hanya menerima transaksi miliknya; Admin menerima seluruh transaksi.
+      parameters:
+        - { in: query, name: page, schema: { type: integer, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, maximum: 100, default: 20 } }
+        - { in: query, name: startDate, schema: { type: string, format: date-time } }
+        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Daftar transaksi beserta item dan meta pagination }
+    post:
+      tags: [Sales]
+      security: [{ bearerAuth: [] }]
+      summary: Checkout dan kurangi stok secara atomik
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, amountPaid]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, quantity]
+                    properties:
+                      productId: { type: string }
+                      quantity: { type: integer, minimum: 1 }
+                discount: { type: number, minimum: 0, default: 0 }
+                amountPaid: { type: number, minimum: 0, example: 50000 }
+                paymentMethod: { type: string, enum: [CASH, CARD, QRIS], default: CASH }
+      responses:
+        '201': { description: Struk transaksi dibuat }
+        '400': { description: Pembayaran kurang, diskon tidak valid, atau body invalid }
+        '409': { description: Stok berubah/tidak mencukupi }
+  /sales/{id}:
+    get:
+      tags: [Sales]
+      security: [{ bearerAuth: [] }]
+      summary: Detail transaksi/struk
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Detail transaksi }
+        '404': { description: Tidak ditemukan atau bukan milik kasir aktif }
+  /reports/summary:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Ringkasan revenue, tren, produk terlaris, dan stok rendah (Admin)
+      parameters:
+        - { in: query, name: startDate, schema: { type: string, format: date-time } }
+        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Agregat laporan dari report service }
+        '403': { description: Role bukan Admin }
+  /reports/sales.csv:
+    get:
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Unduh laporan penjualan CSV (Admin)
+      parameters:
+        - { in: query, name: startDate, schema: { type: string, format: date-time } }
+        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: File CSV berisi transaksi lunas, content: { text/csv: {} } }
+        '403': { description: Role bukan Admin }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
