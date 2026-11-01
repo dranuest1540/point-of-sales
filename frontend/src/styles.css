@@ -142,6 +142,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .empty-basket { width: 47px; height: 47px; display: grid; place-items: center; margin-bottom: 4px; border-radius: 50%; color: #779066; background: #f0f3ea; }
 .cart-empty b { font-size: 15px; }.cart-empty small { color: #9aa198; font-size: 14px; }
 .checkout-form { display: grid; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed #dfe3da; }
+.discount-input-row { display: grid; gap: 6px; color: #6e776d; font-size: 14px; font-weight: 600; }
 .discount-row, .total-row, .grand-total { display: flex; align-items: center; justify-content: space-between; color: #7e877e; font-size: 15px; }
 .discount-row span:last-child { color: #a5aca3; font-size: 14px; }
 .total-row b { color: #465047; font-size: 15px; }

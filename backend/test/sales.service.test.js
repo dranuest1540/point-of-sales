@@ -61,6 +61,16 @@ test('checkout rejects payment below the payable total', async () => {
   assert.equal(database.calls.decrements.length, 0);
 });
 
+test('checkout rejects a discount above the subtotal before reducing stock', async () => {
+  const database = databaseWith(sampleProduct);
+  await assert.rejects(
+    createSale({ items: [{ productId: 'product-1', quantity: 1 }], discount: 30001, amountPaid: 0, paymentMethod: 'CASH' }, 'cashier-1', database),
+    (error) => error.status === 400,
+  );
+  assert.equal(database.calls.decrements.length, 0);
+  assert.equal(database.calls.sale, null);
+});
+
 test('checkout detects a stock change between read and conditional update', async () => {
   const database = databaseWith(sampleProduct, 0);
   await assert.rejects(

@@ -150,6 +150,8 @@ Request `POST /sales` sebagai Admin atau Kasir:
 }
 ```
 
+`discount` adalah nominal potongan tetap dalam rupiah (bukan persentase), tidak boleh negatif atau melebihi subtotal. Total dihitung ulang oleh backend dari harga produk di database; pembayaran harus sekurang-kurangnya sebesar total setelah diskon.
+
 Response `201` berisi `data` transaksi, `items` (snapshot nama/SKU/harga dan jumlah saat dibeli), serta nama kasir. Bentuk ringkas:
 
 ```json
