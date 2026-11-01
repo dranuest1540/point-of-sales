@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f3e9ce"/><stop offset="1" stop-color="#d4b981"/></linearGradient>
+    <linearGradient id="pastry" x2="0" y2="1"><stop stop-color="#f9d77f"/><stop offset=".58" stop-color="#d99a45"/><stop offset="1" stop-color="#a86731"/></linearGradient>
+    <filter id="shadow" x="-.4" y="-.4" width="1.8" height="2"><feGaussianBlur stdDeviation="13"/></filter>
+  </defs>
+  <rect width="640" height="420" rx="28" fill="url(#bg)"/>
+  <circle cx="120" cy="86" r="91" fill="#fff9e9" opacity=".3"/>
+  <path d="M0 318q121-64 263-5t377-45v152H0Z" fill="#e5d3a6" opacity=".72"/>
+  <ellipse cx="324" cy="342" rx="184" ry="30" fill="#765629" opacity=".20" filter="url(#shadow)"/>
+  <ellipse cx="320" cy="330" rx="182" ry="29" fill="#f9f2df"/>
+  <path d="M168 275q28-69 98-106 49-26 83-10 40-28 91 5 58 38 52 99-2 30-42 39l-34-41-20 53q-22 13-45-5l-33-50-30 52q-26 14-50-7l-21-46-36 38q-42 1-43-21Z" fill="url(#pastry)" stroke="#9d622e" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M177 269q37-72 105-96m-54 119q37-69 102-94m-35 121q37-70 99-96m-33 116q35-75 90-103m-2 77q34-51 63-51" fill="none" stroke="#ffe49a" stroke-width="10" stroke-linecap="round" opacity=".72"/>
+  <path d="M225 235q36-32 73-43m-22 79q39-41 79-46m-25 80q41-41 78-49" fill="none" stroke="#b87538" stroke-width="5" stroke-linecap="round" opacity=".78"/>
+  <path d="M459 131q25-42 52-2-9 38-52 2Z" fill="#70874a"/><path d="M470 132q18-12 34-8" fill="none" stroke="#d9e3aa" stroke-width="4"/>
+  <text x="320" y="389" text-anchor="middle" fill="#745833" font-family="Arial,sans-serif" font-size="17" letter-spacing="5">CROISSANT BUTTER</text>
+</svg>

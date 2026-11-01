@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Minus, Plus, Search, ShoppingBag, X } from 'lucide-react';
-import { api, money, dateTime } from '../lib/api.js';
+import { api, money, dateTime, productImageUrl } from '../lib/api.js';
 import { useSession } from '../store/session.js';
 
 export default function PosPage() {
@@ -69,7 +69,7 @@ export default function PosPage() {
         </div>
         <div className="product-grid">{products.map((product, index) => (
           <button className="product-tile" key={product.id} onClick={() => addToCart(product)} disabled={!product.stock} style={{ '--tile-index': index }}>
-            <span className={`product-art art-${index % 6}`}>{product.imageUrl ? <img src={product.imageUrl} alt="" /> : <span>{product.name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</span>}<small>{product.category?.name ?? 'Menu'}</small></span>
+            <span className={`product-art art-${index % 6}`}>{productImageUrl(product) ? <img src={productImageUrl(product)} alt={product.name} loading="lazy" /> : <span>{product.name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</span>}<small>{product.category?.name ?? 'Menu'}</small></span>
             <span className="product-info"><span><b>{product.name}</b><small>{product.sku}</small></span><strong>{money(product.price)}</strong></span>
             <span className={`stock-label ${product.stock <= product.lowStockAt ? 'stock-low' : ''}`}>{product.stock ? `${product.stock} tersedia` : 'Habis'}</span>
             <span className="tile-add"><Plus size={15} /></span>
@@ -83,7 +83,7 @@ export default function PosPage() {
         <div className="cart-heading"><div><p className="eyebrow">PESANAN BARU</p><h2>Keranjang <span>{cart.reduce((count, item) => count + item.quantity, 0)}</span></h2></div><button className="text-button" disabled={!cart.length} onClick={clearCart}>Kosongkan</button></div>
         <div className="cart-customer"><span className="customer-avatar">{user?.name?.slice(0, 1)}</span><span><b>{user?.name}</b><small>Walk-in customer</small></span><button className="icon-button" title="Pelanggan umum"><Plus size={16} /></button></div>
         <div className="cart-items">{cart.map((item) => <div className="cart-item" key={item.id}>
-          <div className="cart-item-art">{item.name.slice(0, 1)}</div><div className="cart-item-detail"><b>{item.name}</b><small>{money(item.price)}</small><div className="quantity-control"><button onClick={() => setQuantity(item.id, item.quantity - 1)} aria-label="Kurangi jumlah"><Minus size={12} /></button><span>{item.quantity}</span><button onClick={() => setQuantity(item.id, Math.min(item.quantity + 1, item.stock))} aria-label="Tambah jumlah"><Plus size={12} /></button></div></div><strong>{money(Number(item.price) * item.quantity)}</strong>
+          <div className="cart-item-art">{productImageUrl(item) ? <img src={productImageUrl(item)} alt="" /> : item.name.slice(0, 1)}</div><div className="cart-item-detail"><b>{item.name}</b><small>{money(item.price)}</small><div className="quantity-control"><button onClick={() => setQuantity(item.id, item.quantity - 1)} aria-label="Kurangi jumlah"><Minus size={12} /></button><span>{item.quantity}</span><button onClick={() => setQuantity(item.id, Math.min(item.quantity + 1, item.stock))} aria-label="Tambah jumlah"><Plus size={12} /></button></div></div><strong>{money(Number(item.price) * item.quantity)}</strong>
         </div>)}{!cart.length && <div className="cart-empty"><span className="empty-basket"><ShoppingBag size={24} /></span><b>Belum ada pesanan</b><small>Pilih menu untuk memulai transaksi.</small></div>}</div>
         <form className="checkout-form" onSubmit={checkout}>
           <div className="discount-row"><span>Diskon</span><span>Belum diterapkan</span></div>

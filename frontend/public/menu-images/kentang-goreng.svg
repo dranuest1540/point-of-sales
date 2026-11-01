@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#f4e7c9"/><stop offset="1" stop-color="#dfbd79"/></linearGradient>
+    <linearGradient id="fry" x2="0" y2="1"><stop stop-color="#ffdf83"/><stop offset="1" stop-color="#d79436"/></linearGradient>
+    <linearGradient id="box" x2="0" y2="1"><stop stop-color="#e66e4b"/><stop offset="1" stop-color="#ad422e"/></linearGradient>
+    <filter id="shadow" x="-.4" y="-.4" width="1.8" height="2"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+  <rect width="640" height="420" rx="28" fill="url(#bg)"/>
+  <circle cx="505" cy="85" r="94" fill="#fff9e8" opacity=".28"/>
+  <path d="M0 317q130-50 267-1t373-41v145H0Z" fill="#e7d19e" opacity=".65"/>
+  <ellipse cx="322" cy="349" rx="151" ry="26" fill="#805b2b" opacity=".2" filter="url(#shadow)"/>
+  <path d="M184 164h56v130h-56Zm60-41h57v172h-57Zm62 24h58v149h-58Zm64-47h57v198h-57Zm62 52h55v146h-55Z" rx="14" fill="url(#fry)" stroke="#bd7e32" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M188 230h225l-26 113q-86 33-174 0Z" fill="url(#box)" stroke="#993b2b" stroke-width="6" stroke-linejoin="round"/>
+  <path d="m212 251 177 1-18 77q-69 24-136 1Z" fill="#ef8a5c" opacity=".68"/>
+  <path d="M228 272q58 20 117 0" fill="none" stroke="#ffd0a6" stroke-width="6" stroke-linecap="round" opacity=".78"/>
+  <path d="M435 306q31-42 61-5-10 39-61 5Z" fill="#718e4a"/><path d="M446 303q21-9 37-3" fill="none" stroke="#dbe6a9" stroke-width="4"/>
+  <circle cx="288" cy="290" r="5" fill="#a94a34"/><circle cx="343" cy="306" r="5" fill="#a94a34"/>
+  <text x="320" y="389" text-anchor="middle" fill="#755a30" font-family="Arial,sans-serif" font-size="17" letter-spacing="5">KENTANG GORENG</text>
+</svg>

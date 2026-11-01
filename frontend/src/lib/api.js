@@ -43,3 +43,20 @@ export function localDateBoundary(value, endOfDay = false) {
     : new Date(year, month - 1, day);
   return date.toISOString();
 }
+
+const menuImages = {
+  'MIN-001': 'kopi-susu-gula-aren.svg',
+  'MIN-002': 'matcha-latte.svg',
+  'MIN-003': 'es-teh-lemon.svg',
+  'MAK-001': 'roti-panggang-cokelat.svg',
+  'MAK-002': 'croissant-butter.svg',
+  'MAK-003': 'nasi-ayam-sambal.svg',
+  'SNK-001': 'kentang-goreng.svg',
+  'SNK-002': 'pisang-goreng.svg',
+};
+
+export function productImageUrl(product) {
+  return product.imageUrl || (menuImages[product.sku]
+    ? `/menu-images/${menuImages[product.sku]}`
+    : '');
+}

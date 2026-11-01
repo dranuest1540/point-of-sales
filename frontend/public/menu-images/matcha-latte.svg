@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#e5edcf"/><stop offset="1" stop-color="#b3c58b"/></linearGradient>
+    <linearGradient id="tea" x2="0" y2="1"><stop stop-color="#a8bd72"/><stop offset=".53" stop-color="#77924d"/><stop offset="1" stop-color="#5a7040"/></linearGradient>
+    <linearGradient id="glass" x2="1"><stop stop-color="#fff" stop-opacity=".68"/><stop offset=".23" stop-color="#fff" stop-opacity=".16"/><stop offset=".8" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/></linearGradient>
+    <filter id="shadow" x="-.4" y="-.4" width="1.8" height="2"><feGaussianBlur stdDeviation="13"/></filter>
+  </defs>
+  <rect width="640" height="420" rx="28" fill="url(#bg)"/>
+  <circle cx="505" cy="92" r="110" fill="#f7fae8" opacity=".27"/>
+  <path d="M0 320q138-82 266-18t374-29v147H0Z" fill="#c6d3a6" opacity=".62"/>
+  <ellipse cx="321" cy="350" rx="133" ry="24" fill="#50663a" opacity=".22" filter="url(#shadow)"/>
+  <ellipse cx="320" cy="337" rx="126" ry="22" fill="#eef0df"/><ellipse cx="320" cy="336" rx="96" ry="13" fill="#c7c7a6"/>
+  <path d="M244 119h152l-14 199q-62 24-124 0Z" fill="url(#tea)" stroke="#f9f8ed" stroke-opacity=".84" stroke-width="8"/>
+  <path d="M252 203q66-20 137 0l-8 110q-61 22-121 0Z" fill="#768f4f" opacity=".92"/>
+  <path d="M251 191q68-25 139 0l-2 22q-70-23-135 0Z" fill="#f6f0dc"/>
+  <path d="m265 147 5 146" stroke="url(#glass)" stroke-width="20" stroke-linecap="round"/>
+  <path d="M269 117h103" stroke="#fff" stroke-opacity=".82" stroke-width="9" stroke-linecap="round"/>
+  <path d="M350 112 391 55" stroke="#f9f9ee" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="282" cy="174" r="8" fill="#f5f2d8" opacity=".75"/><circle cx="304" cy="183" r="5" fill="#f5f2d8" opacity=".7"/>
+  <path d="M464 274c-33-36 11-68 37-45 19-44 66-15 44 24 24 22-1 63-35 47-20 29-62 9-46-26Z" fill="#6f8b48"/>
+  <path d="M470 295q37-42 71-55" fill="none" stroke="#dbe5b8" stroke-width="5"/>
+  <text x="320" y="389" text-anchor="middle" fill="#526740" font-family="Arial,sans-serif" font-size="17" letter-spacing="5">MATCHA LATTE</text>
+</svg>

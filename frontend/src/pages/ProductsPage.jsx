@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Edit2, Plus, Search, X } from 'lucide-react';
-import { api, money } from '../lib/api.js';
+import { api, money, productImageUrl } from '../lib/api.js';
 
 const blankProduct = { sku: '', name: '', description: '', price: '', stock: '', lowStockAt: '5', categoryId: '', isActive: true };
 
@@ -39,7 +39,7 @@ export default function ProductsPage() {
     setEditing(product ?? null);
     setForm(product ? { ...product, price: String(product.price), stock: String(product.stock), lowStockAt: String(product.lowStockAt), categoryId: product.categoryId ?? '' } : blankProduct);
     setImageFile(null);
-    setImagePreview(product?.imageUrl ?? '');
+    setImagePreview(product ? productImageUrl(product) : '');
     setError('');
   }
 
@@ -77,7 +77,7 @@ export default function ProductsPage() {
     <section className="panel table-panel">
       <div className="table-toolbar"><label className="search-field"><Search size={16} /><input placeholder="Cari nama atau SKU" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label><select className="toolbar-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="active">Produk aktif</option><option value="all">Semua produk</option></select><span className="table-count">{meta.total} produk</span></div>
       {error && !activeForm && <p className="inline-error table-error">{error}</p>}
-      <div className="table-scroll"><table><thead><tr><th>PRODUK</th><th>KATEGORI</th><th>HARGA</th><th>STOK</th><th>STATUS</th><th /></tr></thead><tbody>{products.map((product, index) => <tr key={product.id}><td><span className={`table-product-mark mark-${index % 5}`}>{product.imageUrl ? <img src={product.imageUrl} alt="" /> : product.name.slice(0, 1)}</span><span className="table-product-name"><b>{product.name}</b><small>{product.sku}</small></span></td><td>{product.category?.name ?? 'Tanpa kategori'}</td><td className="numeric-cell">{money(product.price)}</td><td><span className={`stock-pill ${product.stock <= product.lowStockAt ? 'stock-pill-low' : ''}`}>{product.stock} unit</span></td><td><span className={`status-pill ${product.isActive ? 'status-active' : 'status-inactive'}`}><i />{product.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td><div className="row-actions"><button className="icon-button" title="Edit produk" onClick={() => openForm(product)}><Edit2 size={15} /></button>{product.isActive && <button className="icon-button archive-button" title="Nonaktifkan produk" onClick={() => archive(product)}><X size={16} /></button>}</div></td></tr>)}</tbody></table></div>
+      <div className="table-scroll"><table><thead><tr><th>PRODUK</th><th>KATEGORI</th><th>HARGA</th><th>STOK</th><th>STATUS</th><th /></tr></thead><tbody>{products.map((product, index) => <tr key={product.id}><td><span className={`table-product-mark mark-${index % 5}`}>{productImageUrl(product) ? <img src={productImageUrl(product)} alt="" /> : product.name.slice(0, 1)}</span><span className="table-product-name"><b>{product.name}</b><small>{product.sku}</small></span></td><td>{product.category?.name ?? 'Tanpa kategori'}</td><td className="numeric-cell">{money(product.price)}</td><td><span className={`stock-pill ${product.stock <= product.lowStockAt ? 'stock-pill-low' : ''}`}>{product.stock} unit</span></td><td><span className={`status-pill ${product.isActive ? 'status-active' : 'status-inactive'}`}><i />{product.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td><div className="row-actions"><button className="icon-button" title="Edit produk" onClick={() => openForm(product)}><Edit2 size={15} /></button>{product.isActive && <button className="icon-button archive-button" title="Nonaktifkan produk" onClick={() => archive(product)}><X size={16} /></button>}</div></td></tr>)}</tbody></table></div>
       {!products.length && <div className="empty-state table-empty"><b>Belum ada produk</b><span>Tambahkan produk atau ubah pencarian.</span></div>}
       <div className="table-footer"><span>Menampilkan {products.length ? (page - 1) * 10 + 1 : 0}–{Math.min(page * 10, meta.total)} dari {meta.total} produk</span><div><button className="icon-button" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Sebelumnya"><ArrowDown size={15} /></button><span>{page} / {Math.max(meta.totalPages, 1)}</span><button className="icon-button" disabled={page >= meta.totalPages} onClick={() => setPage(page + 1)} aria-label="Berikutnya"><ArrowUp size={15} /></button></div></div>
     </section>
