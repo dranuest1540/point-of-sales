@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react';
 import { ArrowDownToLine, CalendarDays, Download, Package, ShoppingCart, TrendingUp } from 'lucide-react';
 import { api, dateInputValue, localDateBoundary, money } from '../lib/api.js';
 
-function tenDaysAgo() {
+function monthStart() {
   const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - 9);
-  return dateInputValue(date);
+  return dateInputValue(new Date(date.getFullYear(), date.getMonth(), 1));
 }
 
 function today() {
@@ -14,7 +12,7 @@ function today() {
 }
 
 export default function ReportsPage() {
-  const [startDate, setStartDate] = useState(tenDaysAgo());
+  const [startDate, setStartDate] = useState(monthStart());
   const [endDate, setEndDate] = useState(today());
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
